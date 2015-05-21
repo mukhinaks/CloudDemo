@@ -170,14 +170,20 @@ namespace CloudDemo {
 			for (int i = 0; i < size; i++ ) {
 				for (int j = 0; j < size; j++) {
 					if (floatMap[i][j] > 0.3) {
+
+						//radius
 						int r = 1000;
-						float x = i - size / 2;
-						float y = j - size / 2;
-						float z2 = x * x + y * y;
-						float r4 = 4 * r * r;
+
+						//2D coordinates of noise
+						float x		= i - size / 2;
+						float y		= j - size / 2;
+						float z2	= x * x + y * y;	//z^2 vertical coord
+						float r4	= 4 * r * r;		//4r
+
+						//3D coordinates from 2D (Stereographic projection)
 						float ksi = x *  r4 / (r4 + z2);
+						float dzeta = - z2 * r * 2 / (r4 + z2) + r / 2; 
 						float eta = y * r4 / (r4 + z2) ;
-						float dzeta = - z2 * r * 2 / (r4 + z2) + r / 2;
 			
 						//on the sphere
 						cs.AddParticle( new Vector3( ksi, dzeta, eta ), Vector3.Zero, 1, new Color(floatMap[i][j]) );
@@ -306,33 +312,33 @@ namespace CloudDemo {
 			GraphicsDevice.PixelShaderSamplers[0] = SamplerState.AnisotropicWrap;
 
 
-			//for (int j = 0; j < 40; j++) {
+			for (int j = 0; j < 40; j++) {
 
-			//	GraphicsDevice.PipelineState = factory[0];
-			//	GraphicsDevice.PixelShaderSamplers[0] = SamplerState.AnisotropicWrap;
-			//	GraphicsDevice.PixelShaderConstants[0] = constBuffer;
-			//	GraphicsDevice.VertexShaderConstants[0] = constBuffer;
+				GraphicsDevice.PipelineState = factory[0];
+				GraphicsDevice.PixelShaderSamplers[0] = SamplerState.AnisotropicWrap;
+				GraphicsDevice.PixelShaderConstants[0] = constBuffer;
+				GraphicsDevice.VertexShaderConstants[0] = constBuffer;
 
 
-			//	for (int i=0; i < scene.Nodes.Count; i++) {
+				for (int i=0; i < scene.Nodes.Count; i++) {
 
-			//		int meshId	=	scene.Nodes[i].MeshIndex;
+					int meshId	=	scene.Nodes[i].MeshIndex;
 
-			//		if (meshId < 0) {
-			//			continue;
-			//		}
+					if (meshId < 0) {
+						continue;
+					}
 
-			//		cbData.World = worldMatricies[i];
-			//		constBuffer.SetData( cbData );
+					cbData.World = worldMatricies[i];
+					constBuffer.SetData( cbData );
 
-			//		GraphicsDevice.SetupVertexInput( vertexBuffers[meshId], indexBuffers[meshId] );
+					GraphicsDevice.SetupVertexInput( vertexBuffers[meshId], indexBuffers[meshId] );
 
-			//		foreach (var subset in scene.Meshes[meshId].Subsets) {
-			//			GraphicsDevice.PixelShaderResources[0] = textures[subset.MaterialIndex];
-			//			GraphicsDevice.DrawIndexed( subset.PrimitiveCount * 3, subset.StartPrimitive * 3, 0 );
-			//		}
-			//	}
-			//}
+					foreach (var subset in scene.Meshes[meshId].Subsets) {
+						GraphicsDevice.PixelShaderResources[0] = textures[subset.MaterialIndex];
+						GraphicsDevice.DrawIndexed( subset.PrimitiveCount * 3, subset.StartPrimitive * 3, 0 );
+					}
+				}
+			}
 
 						
 			base.Draw(gameTime, stereoEye);

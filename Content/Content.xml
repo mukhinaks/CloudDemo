@@ -91,7 +91,7 @@
     <CSEntryPoint>CSMain</CSEntryPoint>
     <SourceFile>shader.hlsl</SourceFile>
     <ShowPemutations>false</ShowPemutations>
-    <ListingPath>C:\Users\mukhi_000\CloudDemo\CloudDemo\Content\Temp\CAA482D1A33B1FC1F6572A6CD4C942ED.html</ListingPath>
+    <ListingPath>D:\HPC\CloudDemo\CloudDemo\CloudDemo\Content\Temp\CAA482D1A33B1FC1F6572A6CD4C942ED.html</ListingPath>
   </Asset>
   <Asset xsi:type="ImageFileTextureAsset">
     <AssetPath>lena.tga</AssetPath>
@@ -359,7 +359,7 @@
     <CSEntryPoint>CSMain</CSEntryPoint>
     <SourceFile>test.hlsl</SourceFile>
     <ShowPemutations>false</ShowPemutations>
-    <ListingPath>C:\Users\mukhi_000\CloudDemo\CloudDemo\Content\Temp\F896B223F730F30840F6325E60A3DDCB.html</ListingPath>
+    <ListingPath>D:\HPC\CloudDemo\CloudDemo\CloudDemo\Content\Temp\F896B223F730F30840F6325E60A3DDCB.html</ListingPath>
   </Asset>
   <Asset xsi:type="ImageFileTextureAsset">
     <AssetPath>Scenes/cloud.tga</AssetPath>
