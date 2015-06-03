@@ -1,9 +1,6 @@
 bin/
-Content/Scenes/ball.fbx
-Content/Scenes/cloud.tga
-Content/Scenes/cube.fbx
-Content/lena.tga
+
 Content/Temp
-Content/test2.hlsl
+
 obj/
 Content/Content.xml
