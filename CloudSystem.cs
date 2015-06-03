@@ -69,11 +69,7 @@ namespace CloudDemo {
 			 public Matrix	Projection;
 			 public int		MaxParticles;
 			 public float	DeltaTime;
-			 public Vector3 Position;
-			 public float	RadiusMin;
-			 public float	RadiusMax;
-			 public float	NumberofCircles;
-
+			 public Vector2 Velocity;
 		} 
 
 		Random rand = new Random();
@@ -128,7 +124,7 @@ namespace CloudDemo {
 		void StateEnum ( PipelineState ps, Flags flags )
 		{
 			ps.BlendState			=	BlendState.Additive;
-			ps.DepthStencilState	=	DepthStencilState.Readonly;
+			ps.DepthStencilState	=	DepthStencilState.None;
 			ps.Primitive			=	Primitive.PointList;
 		}
 
@@ -269,10 +265,7 @@ namespace CloudDemo {
 			//param.Projection	=	Matrix.OrthoOffCenterRH(0, w, h, 0, -9999, 9999);
 			param.MaxParticles	=	0;
 			param.DeltaTime		=	gameTime.ElapsedSec;
-			param.Position		=	cam.FreeCamPosition;
-			param.RadiusMax		=	30;
-			param.RadiusMin		=	10;
-			param.NumberofCircles = 3;
+			param.Velocity		= Vector2.Zero;
 
 
 			device.ComputeShaderConstants[0]	= paramsCB ;
