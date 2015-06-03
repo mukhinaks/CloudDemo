@@ -172,7 +172,7 @@ namespace CloudDemo {
 					if (floatMap[i][j] > 0.3) {
 
 						//radius
-						int r = 1000;
+						int r = 500;
 
 						//2D coordinates of noise
 						float x		= i - size / 2;
@@ -186,10 +186,10 @@ namespace CloudDemo {
 						float eta = y * r4 / (r4 + z2) ;
 			
 						//on the sphere
-						cs.AddParticle( new Vector3( ksi, dzeta, eta ), Vector3.Zero, 1, new Color(floatMap[i][j]) );
+						//cs.AddParticle( new Vector3( ksi, dzeta, eta ), Vector3.Zero, 5, new Color(floatMap[i][j]) );
 			
 						//on the plane
-						//cs.AddParticle( new Vector3( i - size / 2, 0, j - size/2 ), Vector3.Zero, 1, new Color((float) floatMap[i][j]) );
+						cs.AddParticle( new Vector3( i - size / 2, 50, j - size/2 ), Vector3.Zero, 1, new Color((float) floatMap[i][j]) );
 					}
 				}
 			}
