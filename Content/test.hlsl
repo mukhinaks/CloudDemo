@@ -19,10 +19,6 @@ struct PARAMS {
 	float4x4	Projection;
 	int			MaxParticles;
 	float		DeltaTime;
-	float3		Position;
-	float		RadiusMin;
-	float		RadiusMax;
-	float		NumberofCircles;
 };
 
 cbuffer CB1 : register(b0) { 
@@ -123,32 +119,8 @@ void GSMain( point VSOutput inputPoint[1], inout TriangleStream<GSOutput> output
 	
 	
 	//float factor	=	saturate(prt.LifeTime / prt.TotalLifeTime);
+	
 	float  sz 		=   prt.Size0 ; //lerp( prt.Size0, prt.Size1, factor )/2;
-	int n			=	Params.NumberofCircles;
-	
-	//calculating size of particle
-	//float3	upCam	= float3(Params.Position.x, prt.Position.y, Params.Position.z);
-	bool	flag	= true;
-	float	distX	= distance( prt.Position.x, Params.Position.x);
-	float	distZ	= distance( prt.Position.z, Params.Position.z);
-	for (int i = 0; i < n; i++){
-		int r = Params.RadiusMin * (i + 1);
-		if (distX < r && distZ < r){
-			sz		= sz * (i + 1);
-			flag	= false;
-			break;
-		} else {
-			if (distX > Params.RadiusMax || distZ > Params.RadiusMax){
-				flag	= false;
-				sz = 0;
-				break;
-			} 
-		}
-	}
-	if (flag){
-		sz = sz * (n + 1);
-	}
-	
 	//float  time		=	prt.LifeTime;
 	float4 color	=	prt.Color0; //lerp( prt.Color0, prt.Color1, Ramp( prt.FadeIn, prt.FadeOut, factor ) );
 //	float3 position	=	prt.Position;// + float2(0, VelocityRecountY(prt.Size0)) * time;// + prt.Acceleration * time * time / 2;
