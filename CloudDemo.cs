@@ -162,37 +162,11 @@ namespace CloudDemo {
 			}
 
 			//clouds
-			var cs = GetService<CloudSystem>();
+			//var cs = GetService<CloudSystem>();
 			//cs.AddParticle( Vector3.Zero, Vector3.Zero, 3, Color.White );//rand.NextFloat( 100, 900 ));
 
 
-			//clouds from noise
-			for (int i = 0; i < size; i++ ) {
-				for (int j = 0; j < size; j++) {
-					if (floatMap[i][j] > 0.3) {
-
-						//radius
-						int r = 1000;
-
-						//2D coordinates of noise
-						float x		= i - size / 2;
-						float y		= j - size / 2;
-						float z2	= x * x + y * y;	//z^2 vertical coord
-						float r4	= 4 * r * r;		//4r
-
-						//3D coordinates from 2D (Stereographic projection)
-						float ksi = x *  r4 / (r4 + z2);
-						float dzeta = - z2 * r * 2 / (r4 + z2) + r / 2; 
-						float eta = y * r4 / (r4 + z2) ;
 			
-						//on the sphere
-						cs.AddParticle( new Vector3( ksi, dzeta, eta ), Vector3.Zero, 1, new Color(floatMap[i][j]) );
-			
-						//on the plane
-						//cs.AddParticle( new Vector3( i - size / 2, 0, j - size/2 ), Vector3.Zero, 1, new Color((float) floatMap[i][j]) );
-					}
-				}
-			}
 
 		}
 

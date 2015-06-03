@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Fusion;
-using Fusion;
 using Fusion.Mathematics;
 using Fusion.Graphics;
 
@@ -21,11 +20,14 @@ namespace CloudDemo {
 		const int MaxSimulatedParticles =	1024 * 1024;
 
 		int					injectionCount = 0;
-		Cloud[]				injectionBufferCPU = new Cloud[MaxInjectingParticles];
-		StructuredBuffer	injectionBuffer;
-		StructuredBuffer	simulationBufferSrc;
-		StructuredBuffer	simulationBufferDst;
+		//Cloud[]				injectionBufferCPU = new Cloud[MaxInjectingParticles];
+		//StructuredBuffer	injectionBuffer;
+		//StructuredBuffer	simulationBufferSrc;
+		//StructuredBuffer	simulationBufferDst;
 		ConstantBuffer		paramsCB;
+		VertexBuffer vb;
+		List<Cloud> list;
+		int numberOfPoints = 0;
 
 //       float2 Position;               // Offset:    0
 //       float2 Velocity;               // Offset:    8
@@ -42,21 +44,29 @@ namespace CloudDemo {
 //       float FadeOut;                 // Offset:   84
 		
 		struct Cloud {
-			 public Vector3	Position;
-			 public Vector3	Velocity;
-			// public Vector3	Acceleration;
-			 public Vector4	Color0;
-			 public float	Size0;
+			 [Vertex("POSITION")]
+			public Vector3 Position;
+			[Vertex("NORMAL")]
+			public Vector3 Normal;
+			[Vertex("COLOR")]
+			public Vector4 Color;
+			[Vertex("TEXCOORD", 0)]
+			public Vector2 TexCoord;
+			[Vertex("TEXCOORD", 1)]
+			public float Size;
+			[Vertex("TEXCOORD", 2)]
+			public float Angle;
 			
 
 			
 		}
 
-		enum Flags {
-			INJECTION	=	0x1,
-			SIMULATION	=	0x2,
-			DRAW		=	0x4,
+		enum RenderFlags {
+			None,
+			RELATIVE	= 0x1,
+			FIXED		= 0x2,
 		}
+
 
 
 //       row_major float4x4 View;       // Offset:    0
@@ -67,9 +77,9 @@ namespace CloudDemo {
 		struct Params {
 			 public Matrix	View;
 			 public Matrix	Projection;
-			 public int		MaxParticles;
-			 public float	DeltaTime;
-			 public Vector2 Velocity;
+			public Matrix World;
+			public Vector4 CameraPos;
+
 		} 
 
 		Random rand = new Random();
@@ -91,11 +101,9 @@ namespace CloudDemo {
 		{
 
 			paramsCB			=	new ConstantBuffer( Game.GraphicsDevice, typeof(Params) );
-
-			injectionBuffer		=	new StructuredBuffer( Game.GraphicsDevice, typeof(Cloud), MaxInjectingParticles, StructuredBufferFlags.None );
-			simulationBufferSrc	=	new StructuredBuffer( Game.GraphicsDevice, typeof(Cloud), MaxSimulatedParticles, StructuredBufferFlags.Append );
-			simulationBufferDst	=	new StructuredBuffer( Game.GraphicsDevice, typeof(Cloud), MaxSimulatedParticles, StructuredBufferFlags.Append );
-
+			vb = new VertexBuffer( Game.GraphicsDevice, typeof( Cloud ), 128*128 ); 
+			list = new List<Cloud>();
+						
 			base.Initialize();
 			Game.Reloading += Game_Reloading;
 			Game_Reloading(this, EventArgs.Empty);
@@ -105,13 +113,42 @@ namespace CloudDemo {
 		void Game_Reloading ( object sender, EventArgs e )
 		{
 			SafeDispose( ref factory );
-
+			list.Clear();
 			texture		=	Game.Content.Load<Texture2D>(@"Scenes\cloud1");
 			shader		=	Game.Content.Load<Ubershader>("test");
+			float size	= 10.0f;
 
+			//clouds from noise
+			for (int i = 0; i < size; i++ ) {
+				for (int j = 0; j < size; j++) {
+					if (floatMap[i][j] > 0.3) {
 
-			factory		=	new StateFactory( shader, typeof(Flags), (ps,i) => StateEnum( ps, (Flags)i) );
+						//radius
+						int r = 200;
+
+						//2D coordinates of noise
+						float x		= i - size / 2;
+						float y		= j - size / 2;
+						float z2	= x * x + y * y;	//z^2 vertical coord
+						float r4	= 4 * r * r;		//4r
+
+						//3D coordinates from 2D (Stereographic projection)
+						float ksi = x *  r4 / (r4 + z2);
+						float dzeta = - z2 * r * 2 / (r4 + z2) + r / 2; 
+						float eta = y * r4 / (r4 + z2) ;
 			
+						//on the sphere
+						AddPoint( new Vector3( ksi, dzeta, eta ), Vector3.Zero,  new Color(floatMap[i][j]), Vector2.Zero, size  );
+			
+						//on the plane
+						//cs.AddParticle( new Vector3( i - size / 2, 0, j - size/2 ), Vector3.Zero, 1, new Color((float) floatMap[i][j]) );
+					}
+				}
+			}
+
+			factory		=	new StateFactory( shader, typeof(RenderFlags), (ps,i) => StateEnum( ps, (RenderFlags)i) );
+			numberOfPoints = list.Count;
+			vb.SetData( list.ToArray(), 0, numberOfPoints );
 		}
 
 
@@ -121,11 +158,13 @@ namespace CloudDemo {
 		/// </summary>
 		/// <param name="ps"></param>
 		/// <param name="flags"></param>
-		void StateEnum ( PipelineState ps, Flags flags )
+		void StateEnum ( PipelineState ps, RenderFlags flags )
 		{
-			ps.BlendState			=	BlendState.Additive;
-			ps.DepthStencilState	=	DepthStencilState.None;
+			ps.BlendState			=	BlendState.Screen;
+			ps.DepthStencilState	=	DepthStencilState.Readonly;
 			ps.Primitive			=	Primitive.PointList;
+			ps.VertexInputElements = VertexInputElement.FromStructure<Cloud>();
+
 		}
 
 
@@ -152,47 +191,25 @@ namespace CloudDemo {
 		/// Adds random particle at specified position
 		/// </summary>
 		/// <param name="p"></param>
-		public void AddParticle ( Vector3 pos, Vector3 vel, float size0, Color color)
-		{
-			if (injectionCount>=MaxInjectingParticles) {
-				Log.Warning("Too much injected particles per frame");
-				return;
-			}
-
-			//Log.LogMessage("...particle added");
-			//var v = vel + RadialRandomVector() * 5;
-			//var a = rand.NextFloat( -MathUtil.Pi, MathUtil.Pi );
-			//var s = (rand.NextFloat(0,1)>0.5f) ? -1 : 1;
-
-			var p = new Cloud () {
-				Position		=	pos,
-				Velocity		=	Vector3.Zero, //vel + RadialRandomVector() * 5,
-				//Acceleration	=	Vector3.Zero, //new Vector2 (0, 9.8f), // - v * 0.2f,
-				Color0			=	color.ToVector4(),
-				Size0			=	size0,
-//				Color0			=	new Color( 236, 11, 67 ).ToVector4(),
-//				Color0			=	new Color (25, 70, 186).ToVector4(),
-				//Color1			=	rand.NextVector4( Vector4.Zero, Vector4.One ) * colorBoost,
+		public void AddPoint(Vector3 pos, Vector3 normal, Vector4 color, Vector2 texcoord, float size) {
 			
+
+			var p = new Cloud() {
+				Position	= pos,
+				Normal		= normal, 
+				Color		= color, //Color.White.ToVector4(),//
+				TexCoord	= texcoord,
+				Size		= size,
+				Angle		= rand.NextFloat( -MathUtil.Pi, MathUtil.Pi ),
 			};
 
-			injectionBufferCPU[ injectionCount ] = p;
-			injectionCount ++;
+			list.Add( p );
 		}
 
 
 
-		/// <summary>
-		/// Makes all particles wittingly dead
-		/// </summary>
-		void ClearParticleBuffer ()
-		{
-			for (int i=0; i<MaxInjectingParticles; i++) {
-				//injectionBufferCPU[i].TotalLifeTime = -999999;
-			}
-			injectionCount = 0;
-		}
 
+		
 
 
 		/// <summary>
@@ -205,10 +222,7 @@ namespace CloudDemo {
 				SafeDispose( ref factory );
 
 				paramsCB.Dispose();
-
-				injectionBuffer.Dispose();
-				simulationBufferSrc.Dispose();
-				simulationBufferDst.Dispose();
+				SafeDispose(ref vb);
 			}
 			base.Dispose( disposing );
 		}
@@ -223,24 +237,8 @@ namespace CloudDemo {
 		{
 			base.Update( gameTime );
 
-			var ds = Game.GetService<DebugStrings>();
-
-			//ds.Add( Color.Yellow, "Total particles DST: {0}", simulationBufferDst.GetStructureCount() );
-			//ds.Add( Color.Yellow, "Total particles SRC: {0}", simulationBufferSrc.GetStructureCount() );
 		}
 
-
-
-
-		/// <summary>
-		/// 
-		/// </summary>
-		void SwapParticleBuffers ()
-		{
-			var temp = simulationBufferDst;
-			simulationBufferDst = simulationBufferSrc;
-			simulationBufferSrc = temp;
-		}
 
 
 
@@ -263,68 +261,23 @@ namespace CloudDemo {
 			param.Projection	= cam.GetProjectionMatrix( stereoEye );
 			//param.View			=	Matrix.Identity;
 			//param.Projection	=	Matrix.OrthoOffCenterRH(0, w, h, 0, -9999, 9999);
-			param.MaxParticles	=	0;
-			param.DeltaTime		=	gameTime.ElapsedSec;
-			param.Velocity		= Vector2.Zero;
+			param.CameraPos		= new Vector4(cam.FreeCamPosition.X, 0, cam.FreeCamPosition.Z, 0);;
+			param.World			= Matrix.Identity;
 
-
+			paramsCB.SetData(param);
+			device.PipelineState = factory[(int) ( RenderFlags.FIXED)];
+			
 			device.ComputeShaderConstants[0]	= paramsCB ;
 			device.VertexShaderConstants[0]	= paramsCB ;
 			device.GeometryShaderConstants[0]	= paramsCB ;
 			device.PixelShaderConstants[0]	= paramsCB ;
 			
 			device.PixelShaderSamplers[0]	= SamplerState.LinearWrap;
-			
+			device.PixelShaderResources[0] = texture;
 
-			//
-			//	Inject :
-			//
-			injectionBuffer.SetData( injectionBufferCPU );
-			device.Clear( simulationBufferDst, Int4.Zero );
-
-			device.ComputeShaderResources[1]	= injectionBuffer ;
-			device.SetCSRWBuffer( 0, simulationBufferDst, 0 );
-
-			param.MaxParticles	=	injectionCount;
-			paramsCB.SetData( param );
-			//device.CSConstantBuffers[0] = paramsCB ;
-
-			device.PipelineState	=	factory[ (int)Flags.INJECTION ];
-			device.Dispatch( MathUtil.IntDivUp( MaxInjectingParticles, BlockSize ) );
-
-			ClearParticleBuffer();
-
-			//
-			//	Simulate :
-			//
-			device.ComputeShaderResources[1]	= simulationBufferSrc ;
-
-			param.MaxParticles	=	MaxSimulatedParticles;
-			paramsCB.SetData( param );
-			device.ComputeShaderConstants[0] = paramsCB ;
-
-			device.PipelineState	=	factory[ (int)Flags.SIMULATION ];
-			device.Dispatch( MathUtil.IntDivUp( MaxSimulatedParticles, BlockSize ) );//*/
-
-			SwapParticleBuffers();
-
-
-			//
-			//	Render
-			//
-			device.PipelineState	=	factory[ (int)Flags.DRAW ];
-			device.SetCSRWBuffer( 0, null );	
-			device.PixelShaderResources[0]	=	texture ;
-			device.GeometryShaderResources[1]	=	simulationBufferSrc ;
-
-			device.Draw( MaxSimulatedParticles, 0 );
-
-
-			/*var testSrc = new Particle[MaxSimulatedParticles];
-			var testDst = new Particle[MaxSimulatedParticles];
-
-			simulationBufferSrc.GetData( testSrc );
-			simulationBufferDst.GetData( testDst );*/
+			// setup data and draw points
+			device.SetupVertexInput( vb, null );
+			device.Draw(numberOfPoints, 0);
 
 			base.Draw( gameTime, stereoEye );
 		}

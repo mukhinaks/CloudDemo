@@ -1,156 +1,129 @@
 
-#if 0
-$ubershader INJECTION|SIMULATION|DRAW
-#endif
-
-#define BLOCK_SIZE	512
-
-struct PARTICLE {
-	float3	Position;
-	float3	Velocity;
-	//float3	Acceleration;
-	float4	Color0;
-	float	Size0;
+struct BATCH {
+	float4x4	Projection		;
+	float4x4	View			;
+	float4x4	World			;
 	
+	float4		CameraPos		;
+	
+	float4		SkyLightDir		;
+	float4		SkyLightColor	;
+	
+	float4		LightPos0		;
+	float4		LightPos1		;
+	float4		LightPos2		;
+	float4		LightColor0		;
+	float4		LightColor1		;
+	float4		LightColor2		;
 };
 
-struct PARAMS {
-	float4x4	View;
-	float4x4	Projection;
-	int			MaxParticles;
-	float		DeltaTime;
+struct VS_IN {
+	float3 Position : POSITION;
+	float3 Normal 	: NORMAL;
+	float4 Color 	: COLOR;
+	float2 TexCoord : TEXCOORD0;
+	float  Size		: TEXCOORD1;
+	float  Angle	: TEXCOORD2;
 };
 
-cbuffer CB1 : register(b0) { 
-	PARAMS Params; 
+struct OUT_PARTICLE {
+	float4	Position	: POSITION;
+	float4	Color		: COLOR;
+	float2	TexCoord	: TEXCOORD0;
+	float	Size		: TEXCOORD1;
+	float   Angle		: TEXCOORD2;
+	float3	WNormal		: NORMAL;
 };
 
-SamplerState						Sampler				: 	register(s0);
-Texture2D							Texture 			: 	register(t0);
-StructuredBuffer<PARTICLE>			particleBufferSrc	: 	register(t1);
-AppendStructuredBuffer<PARTICLE>	particleBufferDst	: 	register(u0);
+struct PS_IN {
+	float4 	Position 	: SV_POSITION;
+	float4 	Color 		: COLOR;
+	float2 	TexCoord 	: TEXCOORD0;
+	float3	WNormal		: TEXCOORD1;
+};
 
+
+cbuffer 		CBBatch 	: 	register(b0) { BATCH Batch : packoffset( c0 ); }	
+SamplerState	Sampler		: 	register(s0);
+Texture2D		Texture 	: 	register(t0);
+
+#if 0
+$ubershader RELATIVE|FIXED
+#endif
+ 
 /*-----------------------------------------------------------------------------
-	Simulation :
+	Shader functions :
 -----------------------------------------------------------------------------*/
-#if (defined INJECTION) || (defined SIMULATION)
-[numthreads( BLOCK_SIZE, 1, 1 )]
-void CSMain( 
-	uint3 groupID			: SV_GroupID,
-	uint3 groupThreadID 	: SV_GroupThreadID, 
-	uint3 dispatchThreadID 	: SV_DispatchThreadID,
-	uint  groupIndex 		: SV_GroupIndex
-)
+OUT_PARTICLE VSMain( VS_IN input )
 {
-	int id = dispatchThreadID.x;
+	OUT_PARTICLE output 	= (OUT_PARTICLE)0;
 
-#ifdef INJECTION
-	if (id < Params.MaxParticles) {
-		PARTICLE p = particleBufferSrc[ id ];
-		
-			particleBufferDst.Append( p );
-		
+	float4 	pos		=	float4( input.Position, 1 );
+#ifdef FIXED
+	float4	wPos	=	mul( pos,  Batch.World 		);
+	float4	vPos	=	mul( pos, Batch.View 		);
+#endif
+
+#ifdef RELATIVE
+	float4	vPos	=	mul( pos + Batch.CameraPos, Batch.View 		);
+#endif
+	//float4	pPos	=	mul( vPos, Batch.Projection );
+	float4	normal	=	mul( float4(input.Normal,0),  Batch.World 		);
+	
+	output.Position = vPos;
+	float c = 1;//Noise.SampleLevel(Sampler, float2(pos.x, pos.z)/100, 0);
+
+	if (c < 0.3f) {
+		output.Color	= 0;
+		output.Size		= 0;
+	} else {
+		output.Color 	= input.Color * c;
+		output.Size		= input.Size / 2;
 	}
-#endif
-
-#ifdef SIMULATION
-	if (id < Params.MaxParticles) {
-		PARTICLE p = particleBufferSrc[ id ];
-		
-			particleBufferDst.Append( p );
-		
-	}
-#endif
-}
-#endif
-
-
-/*-----------------------------------------------------------------------------
-	Rendering :
------------------------------------------------------------------------------*/
-
-struct VSOutput {
-	int vertexID : TEXCOORD0;
-};
-
-struct GSOutput {
-	float4	Position : SV_Position;
-	float2	TexCoord : TEXCOORD0;
-	float2	TexCoord1 : TEXCOORD1;
-	float 	TexCoord2 : TEXCOORD2;
-	float3	TexCoord3 : TEXCOORD3;
-	float4	Color    : COLOR0;
-
-};
-
-
-#if DRAW
-VSOutput VSMain( uint vertexID : SV_VertexID )
-{
-	VSOutput output;
-	output.vertexID = vertexID;
+	//output.Color 	= input.Color ;//* Noise[float2(input.Position.x + 512, input.Position.z + 512)];
+	output.TexCoord	= input.TexCoord;
+	output.WNormal	= normalize(normal);
+	uint2 pos_xy = { 0, 0 } ;
+	/// * Noise.SampleLevel(Sampler, float2(pos.x, pos.z)/100, 0); //pow(Noise.SampleLevel(Sampler, float2(pos.x, pos.z), 0), 2);
+	output.Angle	= 0;//input.Angle;
+	//output.Size		= input.Size / 2;
 	return output;
 }
 
-
-float VelocityRecountY(float size) 
-{
-	float y = 1;
-	
-	y = 2 * 9.8f * pow (size, 2) * pow(10, -12) * (500 - 1.2041f) / 9 / 1.78 / pow(10, -5);
-	
-	return y;
-}
-
-
-
 [maxvertexcount(6)]
-void GSMain( point VSOutput inputPoint[1], inout TriangleStream<GSOutput> outputStream )
+void GSMain( point OUT_PARTICLE inputPoint[1], inout TriangleStream<PS_IN> outputStream )
 {
-	GSOutput p0, p1, p2, p3;
+	PS_IN p0, p1, p2, p3;
 	
-	p0.TexCoord1 = 0; p0.TexCoord2 = 0; p0.TexCoord3 = 0; //p0.Color1 = 0;
-	p1.TexCoord1 = 0; p1.TexCoord2 = 0; p1.TexCoord3 = 0; //p1.Color1 = 0;
-	p2.TexCoord1 = 0; p2.TexCoord2 = 0; p2.TexCoord3 = 0; //p2.Color1 = 0;
-	p3.TexCoord1 = 0; p3.TexCoord2 = 0; p3.TexCoord3 = 0; //p3.Color1 = 0;
+	OUT_PARTICLE prt = inputPoint[0];	
 	
-	PARTICLE prt = particleBufferSrc[ inputPoint[0].vertexID ];
-	
-	
-	
-	//float factor	=	saturate(prt.LifeTime / prt.TotalLifeTime);
-	
-	float  sz 		=   prt.Size0 ; //lerp( prt.Size0, prt.Size1, factor )/2;
-	//float  time		=	prt.LifeTime;
-	float4 color	=	prt.Color0; //lerp( prt.Color0, prt.Color1, Ramp( prt.FadeIn, prt.FadeOut, factor ) );
-//	float3 position	=	prt.Position;// + float2(0, VelocityRecountY(prt.Size0)) * time;// + prt.Acceleration * time * time / 2;
-	float4 position	=	float4(prt.Position, 1);// + float2(0, VelocityRecountY(prt.Size0)) * time;// + prt.Acceleration * time * time / 2;
-//	float2 position	=	prt.Position + prt.Velocity * time + prt.Acceleration * time * time / 2;
-//	float  a		=	lerp( prt.Angle0, prt.Angle1, factor );	
+	float  sz 		=   prt.Size;	
+	float4 color	=	prt.Color;
+	float4 pp		=	prt.Position;
+//	float4 pp		=	mul(position, Batch.View); 
 
-//	float2x2	m	=	float2x2( cos(a), sin(a), -sin(a), cos(a) );
-//	float3x3	m	=	float3x3( 1, 1, 1, 1, 1, 1, 1, 1, 1 );
-	float4 pp		=	mul(position, Params.View); 
+	float  a		=	prt.Angle;	
+	float2x2	m	=	float2x2( cos(a), sin(a), -sin(a), cos(a) );
 	
-//	p0.Position	= mul( float4( position + mul(float3( sz, sz, 0), m),  1 ), Params.Projection );
-	p0.Position	= mul( pp + float4( sz, sz, 0, 0), Params.Projection );
+	p0.Position	= mul( pp + float4( mul(float2( sz, sz), m), 0, 0), Batch.Projection );
 	p0.TexCoord	= float2(1,1);
 	p0.Color 	= color;
+	p0.WNormal	= prt.WNormal;
 	
-//	p1.Position	= mul( float4( position + mul(float3(-sz, sz, 0), m),  1 ), Params.Projection );
-	p1.Position	= mul( pp + float4( -sz, sz, 0, 0), Params.Projection );
+	p1.Position	= mul( pp + float4( mul(float2(-sz, sz), m), 0, 0), Batch.Projection );
 	p1.TexCoord	= float2(0,1);
 	p1.Color 	= color;
+	p1.WNormal	= prt.WNormal;
 	
-//	p2.Position	= mul( float4( position + mul(float3(-sz,-sz, 0), m),  1 ), Params.Projection );
-	p2.Position	= mul( pp + float4( -sz, -sz, 0, 0), Params.Projection );
+	p2.Position	= mul( pp + float4( mul(float2(-sz,-sz), m), 0, 0), Batch.Projection );
 	p2.TexCoord	= float2(0,0);
 	p2.Color 	= color;
+	p2.WNormal	= prt.WNormal;
 	
-//	p3.Position	= mul( float4( position + mul(float3( sz,-sz, 0), m),  1 ), Params.Projection );
-	p3.Position	= mul( pp + float4( sz, -sz, 0, 0), Params.Projection );
+	p3.Position	= mul( pp + float4( mul(float2( sz,-sz), m), 0, 0), Batch.Projection );
 	p3.TexCoord	= float2(1,0);
 	p3.Color 	= color;
+	p3.WNormal	= prt.WNormal;
 
 	outputStream.Append(p0);
 	outputStream.Append(p1);
@@ -165,11 +138,11 @@ void GSMain( point VSOutput inputPoint[1], inout TriangleStream<GSOutput> output
 	outputStream.RestartStrip();
 }
 
-
-
-float4 PSMain( GSOutput input ) : SV_Target
+float4 PSMain( PS_IN input ) : SV_Target
 {
-	return Texture.Sample( Sampler, input.TexCoord ) * float4(input.Color.rgb,1);
+	return Texture.Sample( Sampler, input.TexCoord ) * 0.5 * input.Color;
 }
-#endif
+
+
+
 
