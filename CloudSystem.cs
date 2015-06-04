@@ -31,6 +31,7 @@ namespace CloudDemo {
 		int numberOfPoints;
 		float step;
  		float radius;
+		int numberOfLayers;
 
 //       float2 Position;               // Offset:    0
 //       float2 Velocity;               // Offset:    8
@@ -128,6 +129,7 @@ namespace CloudDemo {
 			//radius
 			radius = cc.Config.Radius;
 			numberOfPoints = cc.Config.NumberOfPoints;
+			numberOfLayers = cc.Config.NumberOfLayers;
 			float size	= cc.Config.Size;
 
 			//add grid
@@ -144,14 +146,17 @@ namespace CloudDemo {
 					float dzeta = - z2 * radius * 2 / (r4 + z2) + radius;//+ radius / 2 ; 
 					float eta = position.Z * r4 / (r4 + z2) ;
 					//var s = size;
-					AddPoint( new Vector3( ksi, dzeta / 2, eta ), Vector3.Up, Color.White.ToVector4(), Vector2.Zero, size );
+					float height = 20;
+					for (int k = 0; k < numberOfLayers; k++){
+						AddPoint( new Vector3( ksi, dzeta / 2 + height * k, eta ), Vector3.Up, Color.White.ToVector4(), Vector2.Zero, size );
+					}
 					//ps.AddParticle( position, Vector2.Zero, 9999, s, s );
 					//Log.Message("{0}  {1}", s, position );
 				}
 			}
 			factory		=	new StateFactory( shader, typeof(RenderFlags), (ps,i) => StateEnum( ps, (RenderFlags)i) );
 			//numberOfPoints = list.Count;
-			vb.SetData( list.ToArray(), 0, numberOfPoints * numberOfPoints );
+			vb.SetData( list.ToArray(), 0, numberOfLayers * numberOfPoints * numberOfPoints );
 		}
 
 
@@ -166,7 +171,7 @@ namespace CloudDemo {
 			ps.BlendState			=	BlendState.Screen;
 			ps.DepthStencilState	=	DepthStencilState.Readonly;
 			ps.Primitive			=	Primitive.PointList;
-			ps.VertexInputElements = VertexInputElement.FromStructure<Cloud>();
+			ps.VertexInputElements  = VertexInputElement.FromStructure<Cloud>();
 
 		}
 
@@ -277,7 +282,7 @@ namespace CloudDemo {
 
 			// setup data and draw points
 			Game.GraphicsDevice.SetupVertexInput( vb, null );
-			Game.GraphicsDevice.Draw(numberOfPoints * numberOfPoints, 0);
+			Game.GraphicsDevice.Draw(numberOfPoints * numberOfPoints * numberOfLayers, 0);
 
 
 			base.Draw( gameTime, stereoEye );

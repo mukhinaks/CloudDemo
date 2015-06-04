@@ -7,13 +7,16 @@ using System.Threading.Tasks;
 using System.ComponentModel;
 
 namespace CloudDemo {
-	class CloudConfigService: GameService {
+	public class CloudConfigService: GameService {
 		
 		[Config]
 		public CloudConfig	Config { get; set; }
 
 		public class CloudConfig{
 		
+			[Category( "Grid" )]
+			public int NumberOfLayers { get; set; }
+
 			[Category( "Grid" )]
 			public int NumberOfPoints { get; set; }
 
@@ -29,9 +32,10 @@ namespace CloudDemo {
 
 			public CloudConfig(){
 				NumberOfPoints		= 128;
-				Step				= 10;
-				Radius				= 100;
-				Size				= 3;
+				Step				= 4;
+				Radius				= 200;
+				Size				= 20;
+				NumberOfLayers		= 2;
 			}
 		}
 

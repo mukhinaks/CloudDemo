@@ -74,12 +74,12 @@ OUT_PARTICLE VSMain( VS_IN input )
 	output.WNormal	= normalize(normal);
 	float c = Noise.SampleLevel(Sampler, float2(pos.x, pos.z)/100, 0);
 
-	//if (c < 0.3f) {
-	if (c < 0) {
+	if (c < 0.2f) {
+	//if (c < 0) {
 		output.Color	= 0;
 		output.Size		= 0;
 	} else {
-		output.Color 	= input.Color;// * c;
+		output.Color 	= input.Color * c;
 		output.Size		= input.Size / 2;
 	}
 	return output;
@@ -135,8 +135,8 @@ void GSMain( point OUT_PARTICLE inputPoint[1], inout TriangleStream<PS_IN> outpu
 
 float4 PSMain( PS_IN input ) : SV_Target
 {
-	return  input.Color;
-	//return Texture.Sample( Sampler, input.TexCoord ) *  input.Color;
+	//return  input.Color;
+	return Texture.Sample( Sampler, input.TexCoord ) *  input.Color;
 }
 
 

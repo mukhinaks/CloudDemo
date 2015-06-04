@@ -112,6 +112,7 @@ namespace CloudDemo {
 		{
 			SafeDispose( ref factory );
 			SafeDispose( ref indexBuffers );
+			SafeDispose( ref vertexBuffers );
 
 			//texture		=	Content.Load<Texture2D>("lena.tga" );
 			ubershader = Content.Load<Ubershader>("shader.hlsl");
