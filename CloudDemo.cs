@@ -35,8 +35,8 @@ namespace CloudDemo {
 			AddService(new Camera(this), true, false, 1, 1);
 
 			//	add here additional services :
-			AddService( new CloudSystem( this ), true, true, 5, 5 );
-
+			AddService( new CloudSystem( this ), true, true, 500, 500 );
+			AddService( new CloudConfigService( this ), false, false, 1000, 1000 );
 
 			//	load configuration for each service :
 			LoadConfiguration();

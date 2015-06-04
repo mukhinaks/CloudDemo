@@ -10,6 +10,7 @@ using Fusion.Graphics;
 namespace CloudDemo {
 	class CloudSystem: GameService {
 		Texture2D		texture;
+		Texture2D		noise;
 		Ubershader		shader;
 		StateFactory	factory;
 
@@ -24,10 +25,12 @@ namespace CloudDemo {
 		//StructuredBuffer	injectionBuffer;
 		//StructuredBuffer	simulationBufferSrc;
 		//StructuredBuffer	simulationBufferDst;
-		ConstantBuffer		paramsCB;
+			ConstantBuffer constBuffer;
 		VertexBuffer vb;
 		List<Cloud> list;
-		int numberOfPoints = 0;
+		int numberOfPoints;
+		float step;
+ 		float radius;
 
 //       float2 Position;               // Offset:    0
 //       float2 Velocity;               // Offset:    8
@@ -63,8 +66,6 @@ namespace CloudDemo {
 
 		enum RenderFlags {
 			None,
-			RELATIVE	= 0x1,
-			FIXED		= 0x2,
 		}
 
 
@@ -73,14 +74,14 @@ namespace CloudDemo {
 //       row_major float4x4 Projection; // Offset:   64
 //       int MaxParticles;              // Offset:  128
 //       float DeltaTime;               // Offset:  132
-
-		struct Params {
-			 public Matrix	View;
-			 public Matrix	Projection;
-			public Matrix World;
+	struct CBData {
+			public Fusion.Mathematics.Matrix Projection;
+			public Fusion.Mathematics.Matrix View;
+			public Fusion.Mathematics.Matrix World;
 			public Vector4 CameraPos;
 
-		} 
+		}
+
 
 		Random rand = new Random();
 
@@ -100,8 +101,8 @@ namespace CloudDemo {
 		public override void Initialize ()
 		{
 
-			paramsCB			=	new ConstantBuffer( Game.GraphicsDevice, typeof(Params) );
-			vb = new VertexBuffer( Game.GraphicsDevice, typeof( Cloud ), 128*128 ); 
+			constBuffer = new ConstantBuffer(Game.GraphicsDevice, typeof(CBData));
+			vb = new VertexBuffer( Game.GraphicsDevice, typeof( Cloud ), MaxSimulatedParticles ); 
 			list = new List<Cloud>();
 						
 			base.Initialize();
@@ -115,40 +116,42 @@ namespace CloudDemo {
 			SafeDispose( ref factory );
 			list.Clear();
 			texture		=	Game.Content.Load<Texture2D>(@"Scenes\cloud1");
+			noise		=	Game.Content.Load<Texture2D>("noise2");
 			shader		=	Game.Content.Load<Ubershader>("test");
-			float size	= 10.0f;
+			//int index = 128;
+			//float[][] floatMap = new float[index][];
+			//for (int j = 0; j < size; j++) {
+			//	floatMap[j] = Enumerable.Range( 0, index ).Select( (i) => (float) PerlinNoiseGenerator.Noise(i, j)  ).ToArray();
+			//}
+			var cc = Game.GetService<CloudConfigService>();
+			step = cc.Config.Step;
+			//radius
+			radius = cc.Config.Radius;
+			numberOfPoints = cc.Config.NumberOfPoints;
+			float size	= cc.Config.Size;
 
-			//clouds from noise
-			for (int i = 0; i < size; i++ ) {
-				for (int j = 0; j < size; j++) {
-					if (floatMap[i][j] > 0.3) {
-
-						//radius
-						int r = 200;
-
-						//2D coordinates of noise
-						float x		= i - size / 2;
-						float y		= j - size / 2;
-						float z2	= x * x + y * y;	//z^2 vertical coord
-						float r4	= 4 * r * r;		//4r
-
-						//3D coordinates from 2D (Stereographic projection)
-						float ksi = x *  r4 / (r4 + z2);
-						float dzeta = - z2 * r * 2 / (r4 + z2) + r / 2; 
-						float eta = y * r4 / (r4 + z2) ;
-			
-						//on the sphere
-						AddPoint( new Vector3( ksi, dzeta, eta ), Vector3.Zero,  new Color(floatMap[i][j]), Vector2.Zero, size  );
-			
-						//on the plane
-						//cs.AddParticle( new Vector3( i - size / 2, 0, j - size/2 ), Vector3.Zero, 1, new Color((float) floatMap[i][j]) );
-					}
+			//add grid
+			Vector3 start = new Vector3( -numberOfPoints * step / 2, 0, - numberOfPoints * step / 2 );
+			Vector3 position = start;
+			for (int i = 0; i < numberOfPoints; i++) {
+				for (int j = 0; j < numberOfPoints; j++) {
+					position = start +  new Vector3( step * i, 50, step *  j );
+					
+					float z2	= position.X * position.X + position.Z * position.Z;	//z^2 vertical coord
+					float r4	= 4 * radius * radius;		//4r
+					//3D coordinates from 2D (Stereographic projection)
+					float ksi = position.X *  r4 / (r4 + z2);
+					float dzeta = - z2 * radius * 2 / (r4 + z2) + radius;//+ radius / 2 ; 
+					float eta = position.Z * r4 / (r4 + z2) ;
+					//var s = size;
+					AddPoint( new Vector3( ksi, dzeta / 2, eta ), Vector3.Up, Color.White.ToVector4(), Vector2.Zero, size );
+					//ps.AddParticle( position, Vector2.Zero, 9999, s, s );
+					//Log.Message("{0}  {1}", s, position );
 				}
 			}
-
 			factory		=	new StateFactory( shader, typeof(RenderFlags), (ps,i) => StateEnum( ps, (RenderFlags)i) );
-			numberOfPoints = list.Count;
-			vb.SetData( list.ToArray(), 0, numberOfPoints );
+			//numberOfPoints = list.Count;
+			vb.SetData( list.ToArray(), 0, numberOfPoints * numberOfPoints );
 		}
 
 
@@ -220,8 +223,7 @@ namespace CloudDemo {
 		{
 			if (disposing) {
 				SafeDispose( ref factory );
-
-				paramsCB.Dispose();
+				constBuffer.Dispose();
 				SafeDispose(ref vb);
 			}
 			base.Dispose( disposing );
@@ -249,35 +251,34 @@ namespace CloudDemo {
 		/// <param name="stereoEye"></param>
 		public override void Draw ( GameTime gameTime, Fusion.Graphics.StereoEye stereoEye )
 		{
-			var cam	=	Game.GetService<Camera>();
-			
-			var device	=	Game.GraphicsDevice;
+			CBData cbData = new CBData();
 
-			int	w	=	device.DisplayBounds.Width;
-			int h	=	device.DisplayBounds.Height;
+			var cam = Game.GetService<Camera>();
 
-			Params param = new Params();
-			param.View			= cam.GetViewMatrix( stereoEye );
-			param.Projection	= cam.GetProjectionMatrix( stereoEye );
-			//param.View			=	Matrix.Identity;
-			//param.Projection	=	Matrix.OrthoOffCenterRH(0, w, h, 0, -9999, 9999);
-			param.CameraPos		= new Vector4(cam.FreeCamPosition.X, 0, cam.FreeCamPosition.Z, 0);;
-			param.World			= Matrix.Identity;
+			cbData.Projection = cam.GetProjectionMatrix(stereoEye);
+			cbData.View = cam.GetViewMatrix(stereoEye);
+			cbData.World = Matrix.Identity;
+			cbData.CameraPos = new Vector4(cam.FreeCamPosition.X, 0, cam.FreeCamPosition.Z, 0);
+//			cbData.ViewPos = new Vector4( cam.GetCameraMatrix( stereoEye ).TranslationVector, 1 );
 
-			paramsCB.SetData(param);
-			device.PipelineState = factory[(int) ( RenderFlags.FIXED)];
+
+			constBuffer.SetData(cbData);
+			Game.GraphicsDevice.PipelineState = factory[0];
 			
-			device.ComputeShaderConstants[0]	= paramsCB ;
-			device.VertexShaderConstants[0]	= paramsCB ;
-			device.GeometryShaderConstants[0]	= paramsCB ;
-			device.PixelShaderConstants[0]	= paramsCB ;
-			
-			device.PixelShaderSamplers[0]	= SamplerState.LinearWrap;
-			device.PixelShaderResources[0] = texture;
+		//	Game.GraphicsDevice.SetTargets(null, rt.Surface);
+
+			Game.GraphicsDevice.PixelShaderConstants[0] = constBuffer;
+			Game.GraphicsDevice.VertexShaderConstants[0] = constBuffer;
+			Game.GraphicsDevice.VertexShaderSamplers[0] = SamplerState.LinearWrap;
+			Game.GraphicsDevice.VertexShaderResources[1] = noise;
+			Game.GraphicsDevice.GeometryShaderConstants[0] = constBuffer;
+			Game.GraphicsDevice.PixelShaderSamplers[0] = SamplerState.LinearWrap;
+			Game.GraphicsDevice.PixelShaderResources[0] = texture;
 
 			// setup data and draw points
-			device.SetupVertexInput( vb, null );
-			device.Draw(numberOfPoints, 0);
+			Game.GraphicsDevice.SetupVertexInput( vb, null );
+			Game.GraphicsDevice.Draw(numberOfPoints * numberOfPoints, 0);
+
 
 			base.Draw( gameTime, stereoEye );
 		}

@@ -46,9 +46,10 @@ struct PS_IN {
 cbuffer 		CBBatch 	: 	register(b0) { BATCH Batch : packoffset( c0 ); }	
 SamplerState	Sampler		: 	register(s0);
 Texture2D		Texture 	: 	register(t0);
+Texture2D		Noise		:	register(t1);
 
 #if 0
-$ubershader RELATIVE|FIXED
+$ubershader
 #endif
  
 /*-----------------------------------------------------------------------------
@@ -57,36 +58,30 @@ $ubershader RELATIVE|FIXED
 OUT_PARTICLE VSMain( VS_IN input )
 {
 	OUT_PARTICLE output 	= (OUT_PARTICLE)0;
-
+	/*PS_IN VSMain( VS_IN input )
+{
+	PS_IN output 	= (PS_IN)0;*/
+	
 	float4 	pos		=	float4( input.Position, 1 );
-#ifdef FIXED
 	float4	wPos	=	mul( pos,  Batch.World 		);
-	float4	vPos	=	mul( pos, Batch.View 		);
-#endif
-
-#ifdef RELATIVE
-	float4	vPos	=	mul( pos + Batch.CameraPos, Batch.View 		);
-#endif
+	float4	vPos	=	mul( wPos, Batch.View 		);
 	//float4	pPos	=	mul( vPos, Batch.Projection );
 	float4	normal	=	mul( float4(input.Normal,0),  Batch.World 		);
 	
 	output.Position = vPos;
-	float c = 1;//Noise.SampleLevel(Sampler, float2(pos.x, pos.z)/100, 0);
+	//output.Color 	= input.Color;
+	output.TexCoord	= input.TexCoord;
+	output.WNormal	= normalize(normal);
+	float c = Noise.SampleLevel(Sampler, float2(pos.x, pos.z)/100, 0);
 
-	if (c < 0.3f) {
+	//if (c < 0.3f) {
+	if (c < 0) {
 		output.Color	= 0;
 		output.Size		= 0;
 	} else {
-		output.Color 	= input.Color * c;
+		output.Color 	= input.Color;// * c;
 		output.Size		= input.Size / 2;
 	}
-	//output.Color 	= input.Color ;//* Noise[float2(input.Position.x + 512, input.Position.z + 512)];
-	output.TexCoord	= input.TexCoord;
-	output.WNormal	= normalize(normal);
-	uint2 pos_xy = { 0, 0 } ;
-	/// * Noise.SampleLevel(Sampler, float2(pos.x, pos.z)/100, 0); //pow(Noise.SampleLevel(Sampler, float2(pos.x, pos.z), 0), 2);
-	output.Angle	= 0;//input.Angle;
-	//output.Size		= input.Size / 2;
 	return output;
 }
 
@@ -102,7 +97,7 @@ void GSMain( point OUT_PARTICLE inputPoint[1], inout TriangleStream<PS_IN> outpu
 	float4 pp		=	prt.Position;
 //	float4 pp		=	mul(position, Batch.View); 
 
-	float  a		=	prt.Angle;	
+	float  a		=	1;//prt.Angle;	
 	float2x2	m	=	float2x2( cos(a), sin(a), -sin(a), cos(a) );
 	
 	p0.Position	= mul( pp + float4( mul(float2( sz, sz), m), 0, 0), Batch.Projection );
@@ -140,7 +135,8 @@ void GSMain( point OUT_PARTICLE inputPoint[1], inout TriangleStream<PS_IN> outpu
 
 float4 PSMain( PS_IN input ) : SV_Target
 {
-	return Texture.Sample( Sampler, input.TexCoord ) * 0.5 * input.Color;
+	return  input.Color;
+	//return Texture.Sample( Sampler, input.TexCoord ) *  input.Color;
 }
 
 

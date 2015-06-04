@@ -51,6 +51,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CloudConfig.cs" />
     <Compile Include="CloudDemo.cs" />
     <Compile Include="CloudSystem.cs">
       <SubType>Code</SubType>
@@ -61,6 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="Content\noise2.tga" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Content\Content.xml" />
